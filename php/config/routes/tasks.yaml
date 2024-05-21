@@ -1,0 +1,23 @@
+create:
+  path: /
+  controller: App\Controller\Tasks\TasksController::create
+  methods: POST
+
+all:
+  path: /
+  controller: App\Controller\Tasks\TasksController::all
+  methods: GET
+
+by_id:
+  path: /{taskId}
+  controller: App\Controller\Tasks\TasksController::byId
+  methods: GET
+  requirements:
+    taskId: '^\d+$'
+
+update:
+  path: /{taskId}
+  controller: App\Controller\Tasks\TasksController::update
+  methods: PUT
+  requirements:
+    taskId: '^\d+$'

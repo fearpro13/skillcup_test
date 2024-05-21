@@ -1,0 +1,4 @@
+tasks:
+  prefix: /tasks
+  name_prefix: tasks.
+  resource: tasks.yaml
