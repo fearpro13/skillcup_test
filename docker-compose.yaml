@@ -1,4 +1,3 @@
-version: "3.5"
 services:
   app-php:
     container_name: app-php
@@ -7,25 +6,31 @@ services:
       - 9000
     volumes:
       - "app-php-public:/app-php/public"
+      - "/root/.composer"
     deploy:
       resources:
         limits:
           memory: 512M
           cpus: '2'
     depends_on:
-      - app-db
+      app-db:
+        condition: service_healthy
     networks:
       app_network:
   app-go:
     container_name: app-go
     build: "./go"
+    environment:
+      - APP_DATABASE_URL=postgres://postgres:server-db-password@app-db/server-db?sslmode=disable
+      - APP_LISTEN_ADDR=0.0.0.0:80
     deploy:
       resources:
         limits:
           memory: 512M
           cpus: '2'
     depends_on:
-      - app-db
+      app-php:
+        condition: service_started
     networks:
       app_network:
   app-db:
@@ -35,6 +40,11 @@ services:
       POSTGRES_PASSWORD: server-db-password
     networks:
       app_network:
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
   app-server:
     container_name: app-nginx
     build: "./nginx"
@@ -42,6 +52,11 @@ services:
       - "app-php-public:/app-php/public"
     ports:
       - "80:80"
+    depends_on:
+      app-php:
+        condition: service_started
+      app-go:
+        condition: service_started
     networks:
       app_network:
 

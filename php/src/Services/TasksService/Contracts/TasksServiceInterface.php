@@ -32,6 +32,11 @@ interface TasksServiceInterface
 
     /////////////////////////////////////////////
 
+    /**
+     * @param Tasks[] $tasks
+     * @return TasksUsers[]
+     */
+    public function getTaskUsersByTasks(array $tasks):array;
     public function updateTaskUsers(Tasks $task,array $userIds):bool;
 
     /////////////////////////////////////////////

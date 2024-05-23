@@ -7,6 +7,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: TasksUsersRepository::class)]
+#[ORM\Table(name: 'tasks_users')]
 class TasksUsers
 {
     #[ORM\Id]
@@ -14,13 +15,13 @@ class TasksUsers
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\Column(type: Types::BIGINT, nullable: true)]
-    private ?string $taskId = null;
+    #[ORM\Column(type: Types::BIGINT, nullable: false,name: 'task_id')]
+    private ?int $taskId = null;
 
-    #[ORM\Column(type: Types::BIGINT, nullable: true)]
-    private ?string $userId = null;
+    #[ORM\Column(type: Types::BIGINT, nullable: false, name: 'user_id')]
+    private ?int $userId = null;
 
-    #[ORM\Column(nullable: true)]
+    #[ORM\Column(nullable: false)]
     private ?bool $completed = null;
 
     public function getId(): ?int
@@ -33,19 +34,19 @@ class TasksUsers
         return $this->taskId;
     }
 
-    public function setTaskId(?string $taskId): static
+    public function setTaskId(?int $taskId): static
     {
         $this->taskId = $taskId;
 
         return $this;
     }
 
-    public function getUserId(): ?string
+    public function getUserId(): ?int
     {
         return $this->userId;
     }
 
-    public function setUserId(?string $userId): static
+    public function setUserId(?int $userId): static
     {
         $this->userId = $userId;
 

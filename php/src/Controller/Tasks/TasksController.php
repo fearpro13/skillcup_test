@@ -3,6 +3,7 @@
 namespace App\Controller\Tasks;
 
 use App\Entity\Tasks;
+use App\Entity\TasksUsers;
 use App\Services\TasksService\Contracts\TasksServiceInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
@@ -33,9 +34,31 @@ class TasksController extends AbstractController
     {
         $tasks = $this->tasksService->getAll();
 
-        return new JsonResponse(array_map(function ($task) {
-            return $this->normalizer->normalize($task, 'json');
-        }, $tasks));
+        $tasksUsers = $this->tasksService->getTaskUsersByTasks($tasks);
+        $tasksUsersIndexed = [];
+        foreach ($tasksUsers as $taskUser) {
+            $taskId = $taskUser->getTaskId();
+            if (!array_key_exists($taskId, $tasksUsersIndexed)) {
+                $tasksUsersIndexed[$taskId] = [];
+            }
+            $tasksUsersIndexed[$taskId][] = $taskUser;
+        }
+
+        $normalized = [];
+        foreach ($tasks as $task) {
+            $userIds = array_map(static function (TasksUsers $tasksUser) {
+                return $tasksUser->getUserId();
+            }, $tasksUsersIndexed[$task->getId()] ?? []);
+
+            $normalized[] = [
+                'id' => $task->getId(),
+                'title' => $task->getTitle(),
+                'description' => $task->getDescription(),
+                'users' => $userIds,
+            ];
+        }
+
+        return new JsonResponse($normalized);
     }
 
     public function byId(int $taskId): JsonResponse
@@ -46,7 +69,20 @@ class TasksController extends AbstractController
             return new JsonResponse(['message' => 'Task not found'], Response::HTTP_NOT_FOUND);
         }
 
-        return new JsonResponse($this->normalizer->normalize($task, 'json'));
+        $userTasks = $this->tasksService->getTaskUsersByTasks([$task]);
+
+        $userIds = array_map(static function (TasksUsers $tasksUser) {
+            return $tasksUser->getUserId();
+        }, $userTasks);
+
+        $normalized = [
+            'id' => $task->getId(),
+            'title' => $task->getTitle(),
+            'description' => $task->getDescription(),
+            'users' => $userIds,
+        ];
+
+        return new JsonResponse($normalized);
     }
 
     public function create(Request $request): JsonResponse
@@ -110,15 +146,18 @@ class TasksController extends AbstractController
             return new JsonResponse(['errors' => $errors], Response::HTTP_BAD_REQUEST);
         }
 
-        $userIds = $parameters['users'] ?? [];
-        if (empty($userIds) || !is_array($userIds)) {
-            return new JsonResponse(['error' => 'bad request'], Response::HTTP_BAD_REQUEST);
-        }
-
         $this->em->beginTransaction();
 
-        if (!$this->tasksService->update($task) || !$this->tasksService->updateTaskUsers($task, $userIds)) {
+        if (!$this->tasksService->update($task)) {
             $this->em->rollback();
+
+            return new JsonResponse(['message' => 'Task not updated'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $userIds = $parameters['users'] ?? null;
+        if (!empty($userIds) && is_array($userIds) && !$this->tasksService->updateTaskUsers($task, $userIds)) {
+            $this->em->rollback();
+
             return new JsonResponse(['message' => 'Task not updated'], Response::HTTP_BAD_REQUEST);
         }
 

@@ -7,10 +7,10 @@ use App\Entity\TasksUsers;
 use App\Repository\TasksRepository;
 use App\Repository\TasksUsersRepository;
 use App\Services\TasksService\Contracts\TasksServiceInterface;
-use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query\ResultSetMapping;
 use Doctrine\Persistence\ManagerRegistry;
+use Throwable;
 
 readonly class TasksService implements TasksServiceInterface
 {
@@ -50,9 +50,17 @@ readonly class TasksService implements TasksServiceInterface
         return true;
     }
 
+    public function getTaskUsersByTasks(array $tasks): array
+    {
+        return $this
+            ->em
+            ->getRepository(TasksUsers::class)
+            ->getTaskUsersByTasks($tasks);
+    }
+
     public function updateTaskUsers(Tasks $task, array $userIds): bool
     {
-        $userIds = array_filter(array_unique(array_values($userIds), SORT_REGULAR));
+        $userIds = array_values(array_filter(array_unique(array_values($userIds), SORT_REGULAR)));
 
         $values = [];
         foreach ($userIds as $userId) {
@@ -61,24 +69,33 @@ readonly class TasksService implements TasksServiceInterface
             }
 
             $values[] = $task->getId();
-            $values[] = $userId;
+            $values[] = (int)$userId;
             $values[] = false;
         }
 
-        $insertTemplate = implode(",", array_fill(0, count($userIds), "(?,?,?)"));
-
-        $deleteValues = implode(",", $userIds);
+        $insertTemplate = implode(",", array_fill(0, count($userIds), '(?, ?, ?)'));
 
         $this->em->beginTransaction();
 
-        if (!$this->em->createNativeQuery(
-                "insert into tasks values $insertTemplate",
-                new ResultSetMapping()
-            )->execute($values) ||
-            !$this->em->createNativeQuery(
-                'delete from tasks_users where task_id = ? and user_id not in (?)',
-                new ResultSetMapping()
-            )->execute([$task->getId(), $deleteValues])) {
+        $insertQuery = $this->em->createNativeQuery(
+            "insert into tasks_users (task_id, user_id, completed) values $insertTemplate",
+            new ResultSetMapping()
+        );
+        $insertQuery->setParameters($values);
+
+        $deleteTemplate = sprintf("(%s)", implode(",", array_fill(0, count($userIds), '?')));
+        $deleteQuery = $this->em->createNativeQuery(
+            "delete from tasks_users where task_id = ? and user_id NOT IN $deleteTemplate",
+            new ResultSetMapping()
+        );
+        $deleteQuery->setParameters([$task->getId(), ...$userIds]);
+
+        try {
+            $insertQuery->execute();
+
+            $deleteQuery->execute();
+        } catch (Throwable $exception) {
+            error_log($exception);
             $this->em->rollback();
 
             return false;
